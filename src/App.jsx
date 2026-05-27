@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import Auth from "./Auth";
 import { supabase } from "./supabaseClient";
+import ProfilePlanner from "./ProfilePlanner";
 
 const goals = [
   {
@@ -228,9 +229,25 @@ export default function HealthyDietPlannerWebsite() {
     return true;
   }
 
-  function handleSaveRecord() {
+  async function handleSaveRecord() {
     if (!requireLogin()) return;
-    setSaveMessage("已登录。下一步可以把这条记录真正保存到 Supabase 数据库。当前先完成登录拦截逻辑。");
+
+    setSaveMessage("正在保存...");
+
+    const { error } = await supabase.from("diet_records").insert({
+      user_id: session.user.id,
+      vegetable_done: records.vegetable,
+      protein_done: records.protein,
+      water_done: records.water,
+      sugar_control_done: records.sugar,
+    });
+
+    if (error) {
+      setSaveMessage(`保存失败：${error.message}`);
+      return;
+    }
+
+    setSaveMessage("保存成功！这条饮食记录已经写入 Supabase 数据库。");
   }
 
   return (
@@ -272,6 +289,7 @@ export default function HealthyDietPlannerWebsite() {
           <nav className="hidden items-center gap-7 text-sm font-medium text-slate-600 md:flex">
             <a href="#learn" className="hover:text-slate-950">营养科普</a>
             <a href="#planner" className="hover:text-slate-950">饮食规划</a>
+            <a href="#personal" className="hover:text-slate-950">个性化计算</a>
             <a href="#recipes" className="hover:text-slate-950">食谱库</a>
             <a href="#tracker" className="hover:text-slate-950">记录</a>
           </nav>
@@ -481,7 +499,18 @@ export default function HealthyDietPlannerWebsite() {
             </div>
           </div>
         </section>
+        <section id="personal" className="mx-auto max-w-6xl px-5 py-20">
+  <SectionHeading
+    eyebrow="Personal Nutrition"
+    title="填写身体资料，生成个性化饮食参考。"
+    desc="登录后可以保存个人资料。系统会根据身高、体重、年龄、性别、运动频率和目标，估算每日热量与三大营养素。"
+  />
 
+  <ProfilePlanner
+    session={session}
+    onNeedLogin={() => setShowAuth(true)}
+  />
+</section>
         <section id="recipes" className="mx-auto max-w-6xl px-5 py-20">
           <SectionHeading
             eyebrow="Recipe Library"
