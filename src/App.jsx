@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Apple,
@@ -18,6 +18,8 @@ import {
   Sparkles,
   Utensils,
 } from "lucide-react";
+import Auth from "./Auth";
+import { supabase } from "./supabaseClient";
 
 const goals = [
   {
@@ -25,7 +27,6 @@ const goals = [
     title: "保持健康",
     subtitle: "适合日常改善饮食结构",
     icon: HeartPulse,
-    color: "emerald",
     desc: "饮食多样化，主食、蛋白质、蔬菜、水果合理搭配，减少高油、高盐、高糖食品。",
     meals: {
       breakfast: "燕麦 / 全麦面包 + 鸡蛋 + 牛奶 / 无糖酸奶 + 一份水果",
@@ -39,7 +40,6 @@ const goals = [
     title: "减脂",
     subtitle: "控制热量，但不极端节食",
     icon: Scale,
-    color: "lime",
     desc: "控制总热量，保证蛋白质摄入，增加蔬菜和膳食纤维，减少油炸、高糖和精加工食品。",
     meals: {
       breakfast: "鸡蛋 + 无糖豆浆 / 牛奶 + 燕麦 / 玉米 + 黄瓜或番茄",
@@ -53,7 +53,6 @@ const goals = [
     title: "增肌",
     subtitle: "训练人群的高蛋白方案",
     icon: Dumbbell,
-    color: "orange",
     desc: "保证足量蛋白质，合理增加碳水摄入，训练前后补充能量，并保持规律作息。",
     meals: {
       breakfast: "燕麦 + 鸡蛋 2 个 + 牛奶 + 香蕉 / 苹果",
@@ -180,10 +179,28 @@ function SolidCard({ children, className = "" }) {
 }
 
 export default function HealthyDietPlannerWebsite() {
+  const [session, setSession] = useState(null);
+  const [showAuth, setShowAuth] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState("health");
   const [activeRecipeType, setActiveRecipeType] = useState("全部");
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState({ vegetable: false, protein: false, water: false, sugar: false });
+  const [saveMessage, setSaveMessage] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) setShowAuth(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const currentGoal = goals.find((goal) => goal.id === selectedGoal) ?? goals[0];
 
@@ -197,8 +214,47 @@ export default function HealthyDietPlannerWebsite() {
 
   const recordScore = Object.values(records).filter(Boolean).length;
 
+  async function handleLogout() {
+    await supabase.auth.signOut();
+    setSession(null);
+    setSaveMessage("");
+  }
+
+  function requireLogin() {
+    if (!session) {
+      setShowAuth(true);
+      return false;
+    }
+    return true;
+  }
+
+  function handleSaveRecord() {
+    if (!requireLogin()) return;
+    setSaveMessage("已登录。下一步可以把这条记录真正保存到 Supabase 数据库。当前先完成登录拦截逻辑。");
+  }
+
   return (
     <div className="min-h-screen overflow-hidden bg-[#f7f8f5] text-slate-950 selection:bg-emerald-200">
+      {showAuth && !session && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/40 px-5 backdrop-blur-sm">
+          <div className="relative w-full max-w-md">
+            <button
+              onClick={() => setShowAuth(false)}
+              className="absolute -right-3 -top-3 z-10 flex h-10 w-10 items-center justify-center rounded-full bg-white text-xl font-semibold text-slate-700 shadow-md transition hover:bg-slate-100"
+              aria-label="关闭登录弹窗"
+            >
+              ×
+            </button>
+            <Auth
+              onLogin={(newSession) => {
+                setSession(newSession);
+                setShowAuth(false);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
       <div className="pointer-events-none fixed inset-0 -z-10">
         <div className="absolute left-1/2 top-[-18rem] h-[36rem] w-[36rem] -translate-x-1/2 rounded-full bg-emerald-200/50 blur-3xl" />
         <div className="absolute right-[-12rem] top-[20rem] h-[28rem] w-[28rem] rounded-full bg-lime-200/40 blur-3xl" />
@@ -219,9 +275,26 @@ export default function HealthyDietPlannerWebsite() {
             <a href="#recipes" className="hover:text-slate-950">食谱库</a>
             <a href="#tracker" className="hover:text-slate-950">记录</a>
           </nav>
-          <a href="#planner" className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
-            开始规划
-          </a>
+          <div className="flex items-center gap-2">
+            <a href="#planner" className="rounded-full bg-slate-950 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700">
+              开始规划
+            </a>
+            {session ? (
+              <button
+                onClick={handleLogout}
+                className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                退出
+              </button>
+            ) : (
+              <button
+                onClick={() => setShowAuth(true)}
+                className="rounded-full border border-slate-200 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+              >
+                登录
+              </button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -502,6 +575,17 @@ export default function HealthyDietPlannerWebsite() {
                 <p className="mt-5 rounded-[1.5rem] bg-emerald-50 p-4 text-sm leading-7 text-slate-700">
                   {recordScore >= 3 ? "今天的饮食结构整体不错，可以继续保持。" : "今天还有可以改进的地方，建议优先补充蔬菜、蛋白质和水分。"}
                 </p>
+                <button
+                  onClick={handleSaveRecord}
+                  className="mt-5 w-full rounded-full bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700"
+                >
+                  保存今日记录
+                </button>
+                {saveMessage && (
+                  <p className="mt-4 rounded-[1.2rem] bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                    {saveMessage}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -512,9 +596,9 @@ export default function HealthyDietPlannerWebsite() {
             <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
               <Apple />
             </div>
-            <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">下一步：加入登录、数据库和个性化计算。</h2>
+            <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">下一步：真正保存到数据库。</h2>
             <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600">
-              当前版本已经适合作为前端展示。后续可以加入 Flask 后端、SQLite 数据库、用户饮食记录保存、食谱收藏和基础热量估算。
+              当前版本已经完成“公开浏览 + 登录弹窗 + 登录后使用部分功能”的结构。后续可以创建 profiles 和 diet_records 表，把用户资料与饮食记录写入 Supabase。
             </p>
           </div>
         </section>
