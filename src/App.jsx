@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  Apple,
   ArrowRight,
   BookOpen,
   CalendarCheck,
@@ -620,17 +619,6 @@ export default function HealthyDietPlannerWebsite() {
           </div>
         </section>
 
-        <section className="mx-auto max-w-6xl px-5 pb-20">
-          <div className="rounded-[2.5rem] border border-slate-200 bg-white p-8 text-center shadow-sm md:p-12">
-            <div className="mx-auto mb-6 flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700">
-              <Apple />
-            </div>
-            <h2 className="text-3xl font-semibold tracking-tight text-slate-950 md:text-5xl">下一步：真正保存到数据库。</h2>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-8 text-slate-600">
-              当前版本已经完成“公开浏览 + 登录弹窗 + 登录后使用部分功能”的结构。后续可以创建 profiles 和 diet_records 表，把用户资料与饮食记录写入 Supabase。
-            </p>
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-slate-200/70 bg-white/70 px-5 py-8 backdrop-blur-xl">
