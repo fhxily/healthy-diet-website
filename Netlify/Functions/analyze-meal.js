@@ -5,9 +5,11 @@ if (process.env.HTTPS_PROXY) {
   setGlobalDispatcher(new ProxyAgent(process.env.HTTPS_PROXY));
 }
 
+const defaultBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
+
 const client = new OpenAI({
   apiKey: process.env.MIMO_API_KEY,
-  baseURL: process.env.MIMO_BASE_URL || "https://token-plan-c.xiaomimo.com/v1",
+  baseURL: process.env.MIMO_BASE_URL || defaultBaseUrl,
 });
 
 function getModelName() {
@@ -84,7 +86,10 @@ export async function handler(event) {
   if (!process.env.MIMO_API_KEY) {
     return {
       statusCode: 500,
-      body: JSON.stringify({ error: "缺少 MIMO_API_KEY 环境变量" }),
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({ error: "Netlify 缺少 MIMO_API_KEY 环境变量" }),
     };
   }
 
@@ -145,22 +150,29 @@ text: `
     return {
       statusCode: 200,
       headers: {
-        "Content-Type": "application/json",
+        "Content-Type": "application/json; charset=utf-8",
       },
       body: JSON.stringify(result),
     };
   } catch (error) {
     console.error("analyze-meal error:", error);
 
-  return {
-  statusCode: 500,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify({
-    error: error.error?.message || error.message || "AI 分析失败",
-    param: error.error?.param,
-  }),
-};
+    const upstreamMessage = error.error?.message || error.message;
+    const upstreamParam = error.error?.param;
+    const message = upstreamParam
+      ? `${upstreamMessage}：${upstreamParam}`
+      : upstreamMessage || "AI 分析失败，请检查 Netlify 环境变量和 AI 服务状态";
+
+    return {
+      statusCode: error.status || 500,
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+      },
+      body: JSON.stringify({
+        error: message,
+        model: getModelName(),
+        baseUrlConfigured: Boolean(process.env.MIMO_BASE_URL),
+      }),
+    };
   }
 }
