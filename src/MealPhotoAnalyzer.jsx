@@ -39,7 +39,7 @@ function dataUrlToBlob(dataUrl) {
   return new Blob([arrayBuffer], { type: mimeType });
 }
 
-function fileToBase64(file, maxWidth = 288, quality = 0.45) {
+function fileToBase64(file, maxWidth = 224, quality = 0.38) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 

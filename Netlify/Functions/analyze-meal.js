@@ -10,10 +10,12 @@ const defaultBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
 const client = new OpenAI({
   apiKey: process.env.MIMO_API_KEY,
   baseURL: process.env.MIMO_BASE_URL || defaultBaseUrl,
-  timeout: 24000,
+  timeout: getRequestTimeoutMs(),
 });
 
-const requestTimeoutMs = 24000;
+function getRequestTimeoutMs() {
+  return process.env.NETLIFY_DEV ? 28000 : 55000;
+}
 
 function getModelName() {
   return (process.env.MIMO_MODEL || "mimo-v2-omni").trim().toLowerCase();
@@ -260,7 +262,7 @@ foods 是数组，每项包含 name、estimated_grams、calories、protein、fat
           },
         ],
       }),
-      requestTimeoutMs
+      getRequestTimeoutMs()
     );
 
     const parsed = parseAssistantJson(response.choices?.[0]?.message);
