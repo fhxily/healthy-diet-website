@@ -38,8 +38,11 @@ function extractJson(text) {
   } catch {
     const cleaned = text.replace(/```json|```/g, "").trim();
     const match = cleaned.match(/\{[\s\S]*\}/);
-    if (!match) return null;
-    return JSON.parse(match[0]);
+    if (match) return JSON.parse(match[0]);
+
+    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
+    if (!arrayMatch) return null;
+    return JSON.parse(arrayMatch[0]);
   }
 }
 
@@ -57,23 +60,65 @@ function getMessageText(content) {
 }
 
 function parseAssistantJson(message) {
-  const contentJson = extractJson(getMessageText(message?.content));
-  if (contentJson) return contentJson;
-  return extractJson(getMessageText(message?.reasoning_content));
+  const contentText = getMessageText(message?.content);
+  const reasoningText = getMessageText(message?.reasoning_content);
+  const contentJson = extractJson(contentText);
+
+  if (contentJson) {
+    return {
+      data: contentJson,
+      rawText: contentText,
+    };
+  }
+
+  return {
+    data: extractJson(reasoningText),
+    rawText: reasoningText,
+  };
+}
+
+function pickFoods(data) {
+  if (Array.isArray(data)) return data;
+  if (!data || typeof data !== "object") return null;
+
+  if (Array.isArray(data.foods)) return data.foods;
+  if (Array.isArray(data.items)) return data.items;
+  if (Array.isArray(data.food_items)) return data.food_items;
+  if (Array.isArray(data.dishes)) return data.dishes;
+  if (Array.isArray(data.result?.foods)) return data.result.foods;
+  if (Array.isArray(data.data?.foods)) return data.data.foods;
+  if (Array.isArray(data.meal?.foods)) return data.meal.foods;
+
+  if (data.name || data.food || data.food_name || data.calories || data.kcal) {
+    return [data];
+  }
+
+  return null;
+}
+
+function numberFrom(value) {
+  if (typeof value === "number") return value;
+  if (typeof value !== "string") return 0;
+
+  const match = value.match(/-?\d+(\.\d+)?/);
+  return match ? Number(match[0]) : 0;
 }
 
 function validateResult(data) {
-  if (!data || !Array.isArray(data.foods)) {
-    throw new Error("AI 返回结果格式不正确：缺少 foods 数组");
+  const resultFoods = pickFoods(data);
+
+  if (!Array.isArray(resultFoods)) {
+    const keys = data && typeof data === "object" ? Object.keys(data).join(", ") : "none";
+    throw new Error(`AI 返回结果格式不正确：缺少 foods 数组，实际字段：${keys}`);
   }
 
-  const foods = data.foods.map((food) => ({
-    name: String(food.name || "未知食物"),
-    estimated_grams: Number(food.estimated_grams || 0),
-    calories: Number(food.calories || 0),
-    protein: Number(food.protein || 0),
-    fat: Number(food.fat || 0),
-    carbs: Number(food.carbs || 0),
+  const foods = resultFoods.map((food) => ({
+    name: String(food.name || food.food || food.food_name || food.dish || "未知食物"),
+    estimated_grams: numberFrom(food.estimated_grams ?? food.grams ?? food.weight_grams ?? food.weight),
+    calories: numberFrom(food.calories ?? food.kcal ?? food.energy),
+    protein: numberFrom(food.protein ?? food.protein_g),
+    fat: numberFrom(food.fat ?? food.fat_g),
+    carbs: numberFrom(food.carbs ?? food.carbohydrates ?? food.carbs_g),
   }));
 
   const total = foods.reduce(
@@ -91,6 +136,10 @@ function validateResult(data) {
     total,
     note:
       data.note ||
+      data.summary ||
+      data.result?.note ||
+      data.data?.note ||
+      data.meal?.note ||
       "结果由 AI 根据图片估算，仅供饮食记录参考，实际热量会受到食材重量、烹饪方式和调味影响。",
   };
 }
@@ -157,15 +206,22 @@ foods 是数组，每项必须包含 name、estimated_grams、calories、protein
     );
 
     const parsed = parseAssistantJson(response.choices?.[0]?.message);
-    const result = validateResult(parsed);
 
-    return {
-      statusCode: 200,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-      },
-      body: JSON.stringify(result),
-    };
+    try {
+      const result = validateResult(parsed.data);
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify(result),
+      };
+    } catch (formatError) {
+      console.error("AI raw response snippet:", parsed.rawText?.slice(0, 800));
+      console.error("AI parsed response:", parsed.data);
+      throw formatError;
+    }
   } catch (error) {
     console.error("analyze-meal error:", error);
 
