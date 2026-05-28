@@ -36,13 +36,64 @@ function extractJson(text) {
   try {
     return JSON.parse(text);
   } catch {
-    const cleaned = text.replace(/```json|```/g, "").trim();
-    const match = cleaned.match(/\{[\s\S]*\}/);
-    if (match) return JSON.parse(match[0]);
+    const cleaned = text
+      .replace(/```json|```/g, "")
+      .replace(/<\/?think>/g, "")
+      .trim();
+    const candidates = [];
 
-    const arrayMatch = cleaned.match(/\[[\s\S]*\]/);
-    if (!arrayMatch) return null;
-    return JSON.parse(arrayMatch[0]);
+    for (const [open, close] of [
+      ["{", "}"],
+      ["[", "]"],
+    ]) {
+      let depth = 0;
+      let start = -1;
+      let inString = false;
+      let escaped = false;
+
+      for (let index = 0; index < cleaned.length; index += 1) {
+        const char = cleaned[index];
+
+        if (inString) {
+          if (escaped) {
+            escaped = false;
+          } else if (char === "\\") {
+            escaped = true;
+          } else if (char === "\"") {
+            inString = false;
+          }
+          continue;
+        }
+
+        if (char === "\"") {
+          inString = true;
+          continue;
+        }
+
+        if (char === open) {
+          if (depth === 0) start = index;
+          depth += 1;
+        } else if (char === close && depth > 0) {
+          depth -= 1;
+          if (depth === 0 && start >= 0) {
+            candidates.push(cleaned.slice(start, index + 1));
+            start = -1;
+          }
+        }
+      }
+    }
+
+    const parsedCandidates = candidates
+      .map((candidate) => {
+        try {
+          return JSON.parse(candidate);
+        } catch {
+          return null;
+        }
+      })
+      .filter(Boolean);
+
+    return parsedCandidates.find((candidate) => Array.isArray(pickFoods(candidate))) || parsedCandidates[0] || null;
   }
 }
 
@@ -177,8 +228,16 @@ export async function handler(event) {
       client.chat.completions.create({
         model: getModelName(),
         temperature: 0,
-        max_completion_tokens: 500,
+        max_completion_tokens: 900,
+        response_format: {
+          type: "json_object",
+        },
         messages: [
+          {
+            role: "system",
+            content:
+              "你是营养识别 API。只输出 JSON 对象，必须包含 foods 数组和 note 字符串。不要输出 Markdown、解释、response、clarification_question 或模板。",
+          },
           {
             role: "user",
             content: [
@@ -186,10 +245,9 @@ export async function handler(event) {
                 type: "text",
                 text: `
 快速识别图片中的主要食物并估算营养。
-只返回一个紧凑 JSON 对象，不要解释，不要 Markdown，不要返回示例或模板。
-JSON 顶层必须包含 foods 和 note。
-foods 是数组，每项必须包含 name、estimated_grams、calories、protein、fat、carbs。
-所有重量和营养数值都用数字，无法识别食物时 foods 返回空数组。
+返回 JSON 对象，顶层必须包含 foods 和 note。
+foods 是数组，每项包含 name、estimated_grams、calories、protein、fat、carbs。
+所有数值用数字。无法识别食物时 foods 返回空数组。
 `.trim(),
               },
               {
@@ -206,6 +264,22 @@ foods 是数组，每项必须包含 name、estimated_grams、calories、protein
     );
 
     const parsed = parseAssistantJson(response.choices?.[0]?.message);
+
+    if (!parsed.data) {
+      console.error("AI raw response snippet:", parsed.rawText?.slice(0, 800));
+      const result = validateResult({
+        foods: [],
+        note: "AI 没有返回可解析的结构化结果，请换一张更清晰的照片后重试。",
+      });
+
+      return {
+        statusCode: 200,
+        headers: {
+          "Content-Type": "application/json; charset=utf-8",
+        },
+        body: JSON.stringify(result),
+      };
+    }
 
     try {
       const result = validateResult(parsed.data);
