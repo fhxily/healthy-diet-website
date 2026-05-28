@@ -22,7 +22,7 @@ function round(value) {
   return Math.round(value);
 }
 
-function fileToBase64(file, maxWidth = 384, quality = 0.55) {
+function fileToBase64(file, maxWidth = 288, quality = 0.45) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
 
@@ -97,7 +97,7 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
     }
 
     setAnalyzing(true);
-    setMessage("正在调用 AI 分析照片...");
+    setMessage("正在压缩图片并调用 AI 分析...");
 
     try {
       const { base64, mimeType } = await fileToBase64(selectedFile);

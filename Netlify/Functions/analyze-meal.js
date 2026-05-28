@@ -10,10 +10,24 @@ const defaultBaseUrl = "https://token-plan-cn.xiaomimimo.com/v1";
 const client = new OpenAI({
   apiKey: process.env.MIMO_API_KEY,
   baseURL: process.env.MIMO_BASE_URL || defaultBaseUrl,
+  timeout: 24000,
 });
+
+const requestTimeoutMs = 24000;
 
 function getModelName() {
   return (process.env.MIMO_MODEL || "mimo-v2-omni").trim().toLowerCase();
+}
+
+function withTimeout(promise, timeoutMs) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => {
+        reject(new Error("AI 服务响应超时，请稍后重试或换一张更清晰的照片"));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 function extractJson(text) {
@@ -40,6 +54,12 @@ function getMessageText(content) {
       .join("");
   }
   return "";
+}
+
+function parseAssistantJson(message) {
+  const contentJson = extractJson(getMessageText(message?.content));
+  if (contentJson) return contentJson;
+  return extractJson(getMessageText(message?.reasoning_content));
 }
 
 function validateResult(data) {
@@ -104,47 +124,39 @@ export async function handler(event) {
       };
     }
 
-    const response = await client.chat.completions.create({
-      model: getModelName(),
-      temperature: 0.1,
-      messages: [
-        {
-          role: "user",
-          content: [
-            {
-              type: "text",
-text: `
-识别图片中的主要食物，并估算一餐总热量和营养素。
-
-只返回 JSON：
-{
-  "foods": [
-    {
-      "name": "食物名称",
-      "estimated_grams": 100,
-      "calories": 100,
-      "protein": 10,
-      "fat": 5,
-      "carbs": 20
-    }
-  ],
-  "note": "估算值，仅供参考"
-}
+    const response = await withTimeout(
+      client.chat.completions.create({
+        model: getModelName(),
+        temperature: 0,
+        max_completion_tokens: 500,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "text",
+                text: `
+快速识别图片中的主要食物并估算营养。
+只返回一个紧凑 JSON 对象，不要解释，不要 Markdown，不要返回示例或模板。
+JSON 顶层必须包含 foods 和 note。
+foods 是数组，每项必须包含 name、estimated_grams、calories、protein、fat、carbs。
+所有重量和营养数值都用数字，无法识别食物时 foods 返回空数组。
 `.trim(),
-            },
-            {
-              type: "image_url",
-              image_url: {
-                url: `data:${mimeType};base64,${imageBase64}`,
               },
-            },
-          ],
-        },
-      ],
-    });
+              {
+                type: "image_url",
+                image_url: {
+                  url: `data:${mimeType};base64,${imageBase64}`,
+                },
+              },
+            ],
+          },
+        ],
+      }),
+      requestTimeoutMs
+    );
 
-    const text = getMessageText(response.choices?.[0]?.message?.content);
-    const parsed = extractJson(text);
+    const parsed = parseAssistantJson(response.choices?.[0]?.message);
     const result = validateResult(parsed);
 
     return {
