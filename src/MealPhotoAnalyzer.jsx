@@ -1,5 +1,8 @@
 import { useMemo, useState } from "react";
 import { Camera, ImagePlus, Loader2, Save, Sparkles, Utensils } from "lucide-react";
+import { supabase } from "./supabaseClient";
+
+const mealPhotoBucket = "meal-photos";
 
 function sumFoods(foods) {
   return foods.reduce(
@@ -20,6 +23,20 @@ function sumFoods(foods) {
 
 function round(value) {
   return Math.round(value);
+}
+
+function dataUrlToBlob(dataUrl) {
+  const [header, base64] = dataUrl.split(",");
+  const mimeType = header.match(/data:(.*);base64/)?.[1] || "image/jpeg";
+  const bytes = atob(base64);
+  const arrayBuffer = new ArrayBuffer(bytes.length);
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    uint8Array[index] = bytes.charCodeAt(index);
+  }
+
+  return new Blob([arrayBuffer], { type: mimeType });
 }
 
 function fileToBase64(file, maxWidth = 288, quality = 0.45) {
@@ -45,6 +62,7 @@ function fileToBase64(file, maxWidth = 288, quality = 0.45) {
         resolve({
           base64,
           mimeType: "image/jpeg",
+          blob: dataUrlToBlob(compressedDataUrl),
         });
       };
 
@@ -59,9 +77,11 @@ function fileToBase64(file, maxWidth = 288, quality = 0.45) {
 
 export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
   const [selectedFile, setSelectedFile] = useState(null);
+  const [compressedImage, setCompressedImage] = useState(null);
   const [imagePreview, setImagePreview] = useState("");
   const [fileName, setFileName] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [result, setResult] = useState(null);
   const [message, setMessage] = useState("");
 
@@ -83,6 +103,7 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
     const previewUrl = URL.createObjectURL(file);
 
     setSelectedFile(file);
+    setCompressedImage(null);
     setImagePreview(previewUrl);
     setFileName(file.name);
     setResult(null);
@@ -100,7 +121,8 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
     setMessage("正在压缩图片并调用 AI 分析...");
 
     try {
-      const { base64, mimeType } = await fileToBase64(selectedFile);
+      const compressed = await fileToBase64(selectedFile);
+      setCompressedImage(compressed);
 
       const response = await fetch("/.netlify/functions/analyze-meal", {
         method: "POST",
@@ -108,8 +130,8 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          imageBase64: base64,
-          mimeType,
+          imageBase64: compressed.base64,
+          mimeType: compressed.mimeType,
         }),
       });
 
@@ -136,7 +158,7 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
     }
   }
 
-  function handleSaveResult() {
+  async function handleSaveResult() {
     if (!session?.user?.id) {
       onNeedLogin();
       return;
@@ -147,7 +169,51 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
       return;
     }
 
-    setMessage("已登录。下一步可以把图片和分析结果保存到 Supabase 数据库。当前先完成交互流程。");
+    if (!selectedFile) {
+      setMessage("请先上传一张饭菜照片。");
+      return;
+    }
+
+    setSaving(true);
+    setMessage("正在保存图片和分析结果...");
+
+    try {
+      const image = compressedImage || (await fileToBase64(selectedFile));
+      const safeFileName = selectedFile.name.replace(/[^\w.-]+/g, "_");
+      const imagePath = `${session.user.id}/${Date.now()}-${safeFileName}.jpg`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(mealPhotoBucket)
+        .upload(imagePath, image.blob, {
+          contentType: image.mimeType,
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw new Error(`图片上传失败：${uploadError.message}`);
+      }
+
+      const { error: insertError } = await supabase.from("meal_photo_analyses").insert({
+        user_id: session.user.id,
+        file_name: selectedFile.name,
+        image_path: imagePath,
+        image_mime_type: image.mimeType,
+        foods: result.foods,
+        total,
+        note: result.note,
+      });
+
+      if (insertError) {
+        throw new Error(`分析记录保存失败：${insertError.message}`);
+      }
+
+      setCompressedImage(image);
+      setMessage("保存成功！图片已上传到 Supabase Storage，分析结果已写入数据库。");
+    } catch (error) {
+      setMessage(`保存失败：${error.message}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -283,10 +349,11 @@ export default function MealPhotoAnalyzer({ session, onNeedLogin }) {
 
             <button
               onClick={handleSaveResult}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700"
+              disabled={saving}
+              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full bg-emerald-600 px-6 py-3 font-semibold text-white transition hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              <Save size={18} />
-              保存分析结果
+              {saving ? <Loader2 size={18} className="animate-spin" /> : <Save size={18} />}
+              {saving ? "保存中..." : "保存分析结果"}
             </button>
           </>
         )}
