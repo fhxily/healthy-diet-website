@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   ArrowRight,
@@ -20,6 +20,7 @@ import {
 import Auth from "./Auth";
 import { supabase } from "./supabaseClient";
 import ProfilePlanner from "./ProfilePlanner";
+import MealPhotoAnalyzer from "./MealPhotoAnalyzer";
 
 const goals = [
   {
@@ -87,6 +88,7 @@ const articles = [
 ];
 
 const recipes = [
+  // 早餐
   {
     name: "鸡蛋燕麦牛奶早餐",
     type: "早餐",
@@ -97,6 +99,44 @@ const recipes = [
     reason: "制作简单，包含碳水、蛋白质和膳食纤维。",
   },
   {
+    name: "全麦鸡蛋三明治",
+    type: "早餐",
+    goal: "保持健康 / 减脂",
+    time: "12 分钟",
+    kcal: "约 420 kcal",
+    ingredients: "全麦面包、鸡蛋、生菜、番茄、牛奶",
+    reason: "比普通白面包更有饱腹感，适合早上时间不多的人。",
+  },
+  {
+    name: "豆浆玉米鸡蛋早餐",
+    type: "早餐",
+    goal: "减脂 / 保持健康",
+    time: "8 分钟",
+    kcal: "约 330 kcal",
+    ingredients: "无糖豆浆、玉米、鸡蛋、黄瓜",
+    reason: "清淡、方便，适合作为低油早餐。",
+  },
+  {
+    name: "酸奶水果燕麦杯",
+    type: "早餐",
+    goal: "保持健康",
+    time: "5 分钟",
+    kcal: "约 380 kcal",
+    ingredients: "无糖酸奶、燕麦、蓝莓、香蕉、坚果",
+    reason: "不需要开火，适合宿舍、办公室或早八人群。",
+  },
+  {
+    name: "鸡蛋红薯牛奶早餐",
+    type: "早餐",
+    goal: "减脂 / 保持健康",
+    time: "15 分钟",
+    kcal: "约 400 kcal",
+    ingredients: "红薯、鸡蛋、牛奶、苹果",
+    reason: "红薯提供复合碳水，鸡蛋和牛奶补充蛋白质。",
+  },
+
+  // 午餐
+  {
     name: "鸡胸肉杂粮饭",
     type: "午餐",
     goal: "减脂 / 增肌",
@@ -105,6 +145,44 @@ const recipes = [
     ingredients: "鸡胸肉、杂粮饭、西兰花、胡萝卜",
     reason: "蛋白质充足，主食和蔬菜搭配均衡。",
   },
+  {
+    name: "虾仁蔬菜荞麦面",
+    type: "午餐",
+    goal: "减脂 / 保持健康",
+    time: "20 分钟",
+    kcal: "约 480 kcal",
+    ingredients: "虾仁、荞麦面、青菜、香菇",
+    reason: "口味清爽，蛋白质来源明确，主食不过量。",
+  },
+  {
+    name: "番茄牛肉糙米饭",
+    type: "午餐",
+    goal: "增肌 / 保持健康",
+    time: "30 分钟",
+    kcal: "约 620 kcal",
+    ingredients: "牛肉、番茄、糙米饭、青菜",
+    reason: "能量更充足，适合运动日或午餐需要抗饿的人。",
+  },
+  {
+    name: "三文鱼土豆蔬菜餐",
+    type: "午餐",
+    goal: "保持健康 / 增肌",
+    time: "28 分钟",
+    kcal: "约 650 kcal",
+    ingredients: "三文鱼、土豆、芦笋、彩椒",
+    reason: "优质脂肪和蛋白质较充足，整体搭配更均衡。",
+  },
+  {
+    name: "豆腐鸡蛋盖饭",
+    type: "午餐",
+    goal: "保持健康 / 减脂",
+    time: "18 分钟",
+    kcal: "约 500 kcal",
+    ingredients: "豆腐、鸡蛋、米饭、青菜、香菇",
+    reason: "成本低、制作简单，适合学生党和日常便当。",
+  },
+
+  // 晚餐
   {
     name: "番茄豆腐蔬菜汤",
     type: "晚餐",
@@ -124,6 +202,35 @@ const recipes = [
     reason: "碳水和蛋白质更充足，适合训练日。",
   },
   {
+    name: "清蒸鱼杂粮饭",
+    type: "晚餐",
+    goal: "保持健康 / 减脂",
+    time: "25 分钟",
+    kcal: "约 460 kcal",
+    ingredients: "鱼肉、杂粮饭、青菜、菌菇",
+    reason: "口味清淡，蛋白质足，适合晚餐不想太油的人。",
+  },
+  {
+    name: "鸡蛋蔬菜荞麦面",
+    type: "晚餐",
+    goal: "减脂 / 保持健康",
+    time: "15 分钟",
+    kcal: "约 430 kcal",
+    ingredients: "荞麦面、鸡蛋、菠菜、胡萝卜",
+    reason: "一锅就能完成，适合下课或下班后快速解决晚餐。",
+  },
+  {
+    name: "鸡肉藜麦沙拉",
+    type: "晚餐",
+    goal: "减脂 / 保持健康",
+    time: "20 分钟",
+    kcal: "约 480 kcal",
+    ingredients: "鸡胸肉、藜麦、生菜、玉米、番茄",
+    reason: "蔬菜比例高，饱腹感较好，适合轻晚餐。",
+  },
+
+  // 加餐
+  {
     name: "酸奶水果坚果加餐",
     type: "加餐",
     goal: "保持健康 / 增肌",
@@ -133,13 +240,40 @@ const recipes = [
     reason: "方便快捷，适合作为两餐之间的补充。",
   },
   {
-    name: "虾仁蔬菜荞麦面",
-    type: "午餐",
-    goal: "减脂 / 保持健康",
-    time: "20 分钟",
-    kcal: "约 480 kcal",
-    ingredients: "虾仁、荞麦面、青菜、香菇",
-    reason: "口味清爽，蛋白质来源明确，主食不过量。",
+    name: "香蕉牛奶加餐",
+    type: "加餐",
+    goal: "增肌 / 保持健康",
+    time: "3 分钟",
+    kcal: "约 220 kcal",
+    ingredients: "香蕉、牛奶",
+    reason: "适合训练前后补充能量，简单不麻烦。",
+  },
+  {
+    name: "苹果花生酱吐司",
+    type: "加餐",
+    goal: "增肌 / 保持健康",
+    time: "6 分钟",
+    kcal: "约 300 kcal",
+    ingredients: "苹果、全麦吐司、花生酱",
+    reason: "能量密度较高，更适合需要加餐补热量的人。",
+  },
+  {
+    name: "鸡蛋黄瓜加餐",
+    type: "加餐",
+    goal: "减脂",
+    time: "5 分钟",
+    kcal: "约 150 kcal",
+    ingredients: "鸡蛋、黄瓜",
+    reason: "低负担、高饱腹，适合减脂期嘴馋时使用。",
+  },
+  {
+    name: "无糖酸奶燕麦加餐",
+    type: "加餐",
+    goal: "保持健康 / 减脂",
+    time: "5 分钟",
+    kcal: "约 230 kcal",
+    ingredients: "无糖酸奶、燕麦、草莓",
+    reason: "比甜点更稳妥，适合下午补充一点能量。",
   },
 ];
 
@@ -183,6 +317,7 @@ export default function HealthyDietPlannerWebsite() {
   const [showAuth, setShowAuth] = useState(false);
   const [selectedGoal, setSelectedGoal] = useState("health");
   const [activeRecipeType, setActiveRecipeType] = useState("全部");
+  const [recipeExpanded, setRecipeExpanded] = useState(false);
   const [query, setQuery] = useState("");
   const [records, setRecords] = useState({ vegetable: false, protein: false, water: false, sugar: false });
   const [saveMessage, setSaveMessage] = useState("");
@@ -213,6 +348,8 @@ export default function HealthyDietPlannerWebsite() {
   }, [activeRecipeType, query]);
 
   const recordScore = Object.values(records).filter(Boolean).length;
+  const shouldLimitRecipes = filteredRecipes.length > 9;
+  const visibleRecipes = recipeExpanded ? filteredRecipes : filteredRecipes.slice(0, 9);
 
   async function handleLogout() {
     await supabase.auth.signOut();
@@ -289,6 +426,7 @@ export default function HealthyDietPlannerWebsite() {
             <a href="#learn" className="hover:text-slate-950">营养科普</a>
             <a href="#planner" className="hover:text-slate-950">饮食规划</a>
             <a href="#personal" className="hover:text-slate-950">个性化计算</a>
+            <a href="#photo" className="hover:text-slate-950">拍照识餐</a>
             <a href="#recipes" className="hover:text-slate-950">食谱库</a>
             <a href="#tracker" className="hover:text-slate-950">记录</a>
           </nav>
@@ -499,17 +637,31 @@ export default function HealthyDietPlannerWebsite() {
           </div>
         </section>
         <section id="personal" className="mx-auto max-w-6xl px-5 py-20">
-  <SectionHeading
-    eyebrow="Personal Nutrition"
-    title="填写身体资料，生成个性化饮食参考。"
-    desc="登录后可以保存个人资料。系统会根据身高、体重、年龄、性别、运动频率和目标，估算每日热量与三大营养素。"
-  />
+          <SectionHeading
+            eyebrow="Personal Nutrition"
+            title="填写身体资料，生成个性化饮食参考。"
+            desc="登录后可以保存个人资料。系统会根据身高、体重、年龄、性别、运动频率和目标，估算每日热量与三大营养素。"
+          />
 
-  <ProfilePlanner
-    session={session}
-    onNeedLogin={() => setShowAuth(true)}
-  />
-</section>
+          <ProfilePlanner
+            session={session}
+            onNeedLogin={() => setShowAuth(true)}
+          />
+        </section>
+
+        <section id="photo" className="mx-auto max-w-6xl px-5 py-20">
+          <SectionHeading
+            eyebrow="Meal Photo Analyzer"
+            title="上传一顿饭照片，模拟估算一餐热量。"
+            desc="第一阶段先完成上传、预览和模拟分析流程。后续可以接入 AI 视觉模型，真正识别食物种类和估算热量。"
+          />
+
+          <MealPhotoAnalyzer
+            session={session}
+            onNeedLogin={() => setShowAuth(true)}
+          />
+        </section>
+        
         <section id="recipes" className="mx-auto max-w-6xl px-5 py-20">
           <SectionHeading
             eyebrow="Recipe Library"
@@ -522,7 +674,10 @@ export default function HealthyDietPlannerWebsite() {
               {["全部", "早餐", "午餐", "晚餐", "加餐"].map((type) => (
                 <button
                   key={type}
-                  onClick={() => setActiveRecipeType(type)}
+                  onClick={() => {
+                    setActiveRecipeType(type);
+                    setRecipeExpanded(false);
+                  }}
                   className={`rounded-full px-5 py-2.5 text-sm font-semibold transition ${
                     activeRecipeType === type ? "bg-slate-950 text-white" : "bg-white text-slate-600 hover:bg-slate-100 hover:text-slate-950"
                   }`}
@@ -535,15 +690,22 @@ export default function HealthyDietPlannerWebsite() {
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  setRecipeExpanded(false);
+                }}
                 placeholder="搜索食材或食谱"
                 className="w-full rounded-full border border-slate-200 bg-white py-3 pl-11 pr-4 text-sm outline-none transition focus:border-emerald-400 focus:ring-4 focus:ring-emerald-100"
               />
             </div>
           </div>
 
-          <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-            {filteredRecipes.map((recipe) => (
+          <div
+            className={`grid gap-5 md:grid-cols-2 lg:grid-cols-3 ${
+              recipeExpanded ? "max-h-[980px] overflow-y-auto pr-3" : ""
+            }`}
+          >
+            {visibleRecipes.map((recipe) => (
               <SolidCard key={recipe.name}>
                 <div className="mb-6 flex items-center justify-between">
                   <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-orange-50 text-orange-600">
@@ -562,6 +724,17 @@ export default function HealthyDietPlannerWebsite() {
               </SolidCard>
             ))}
           </div>
+
+          {shouldLimitRecipes && (
+            <div className="mt-8 flex justify-end">
+              <button
+                onClick={() => setRecipeExpanded((prev) => !prev)}
+                className="rounded-full border border-slate-200 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
+              >
+                {recipeExpanded ? "收起" : "展开更多食谱"}
+              </button>
+            </div>
+          )}
         </section>
 
         <section id="tracker" className="px-5 py-20">
